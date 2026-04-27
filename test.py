@@ -1,14 +1,15 @@
-from openai import OpenAI
 import os
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
-client = OpenAI()
 
-response = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[{"role": "user", "content": "Say hello"}]
+# Initialize the client with your API key
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Use the generate method
+response = client.models.generate_content(
+    model="gemini-2.5-flash-lite",
+    contents="Say hello"
 )
-
-
-print(response.choices[0].message.content)
+print(response.text)
