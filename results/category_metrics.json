@@ -1,0 +1,20 @@
+{
+  "prompt_injection": {
+    "total": 15,
+    "passed": 12,
+    "failed": 3,
+    "pass_rate": 0.8
+  },
+  "jailbreak": {
+    "total": 15,
+    "passed": 9,
+    "failed": 6,
+    "pass_rate": 0.6
+  },
+  "hallucination": {
+    "total": 15,
+    "passed": 15,
+    "failed": 0,
+    "pass_rate": 1.0
+  }
+}
