@@ -4,8 +4,15 @@ import argparse
 
 from dotenv import load_dotenv
 from tqdm import tqdm
-from .evaluator import evaluate_response
 from collections import defaultdict
+
+from anthropic import Anthropic
+from openai import OpenAI
+from google import genai
+from google.genai import types
+
+from .evaluator import evaluate_response
+
 from config.settings import (
     DEFAULT_MODEL,
     SUPPORTED_MODELS,
@@ -19,8 +26,9 @@ load_dotenv()
 
 def initialize_model(model_key):
     """
-    Dynamically initialize model provider based on configuration.
+    Initialize model runtime dynamically based on provider configuration.
     """
+
     model_config = SUPPORTED_MODELS[model_key]
     provider = model_config["provider"]
 
@@ -29,60 +37,40 @@ def initialize_model(model_key):
     # =====================================================
 
     if provider == "google":
-        from google import genai
 
         client = genai.Client(
             api_key=model_config["api_key"]
         )
-
-        return {
-            "provider": provider,
-            "client": client,
-            "config": model_config
-        }
 
     # =====================================================
     # OPENAI
     # =====================================================
 
     elif provider == "openai":
-        from openai import OpenAI
 
         client = OpenAI(
             api_key=model_config["api_key"]
         )
-
-        return {
-            "provider": provider,
-            "client": client,
-            "config": model_config
-        }
 
     # =====================================================
     # ANTHROPIC
     # =====================================================
 
     elif provider == "anthropic":
-        import anthropic
 
-        client = anthropic.Anthropic(
+        client = Anthropic(
             api_key=model_config["api_key"]
         )
-
-        return {
-            "provider": provider,
-            "client": client,
-            "config": model_config
-        }
 
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
+    return {
+        "provider": provider,
+        "client": client,
+        "config": model_config
+    }
 
-# client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-# Use the latest model ID
-# MODEL_ID = "gemini-2.5-flash-lite"
 
 def load_data(path):
     with open(path, "r") as f:
@@ -107,8 +95,6 @@ def call_model(prompt, model_runtime):
 
         if provider == "google":
 
-            from google.genai import types
-
             response = client.models.generate_content(
                 model=config["model_name"],
                 contents=prompt,
@@ -121,7 +107,7 @@ def call_model(prompt, model_runtime):
                 )
             )
 
-            return response.text if response.text else "ERROR: No response"
+            return response.text if response.text else "ERROR: Empty response"
 
         # =================================================
         # OPENAI
@@ -200,11 +186,34 @@ def parse_args():
     return parser.parse_args()
 
 
+def sanitize_model_config(model_config):
+    """
+    Remove sensitive fields before logging.
+    """
+
+    sensitive_keys = {
+        "api_key",
+        "access_token",
+        "secret",
+        "password"
+    }
+
+    return {
+        k: v
+        for k, v in model_config.items()
+        if k not in sensitive_keys
+    }
+
+
 def run_and_evaluate(data_path, model_runtime, model_key):
     data = load_data(data_path)
     results = []
 
-    print(f"Testing {len(data)} items with {SUPPORTED_MODELS[model_key]}...")
+    safe_config = sanitize_model_config(
+        SUPPORTED_MODELS[model_key]
+    )
+
+    print(f"Testing {len(data)} items with {safe_config}...")
     for item in tqdm(data):
         # output = call_model(item["input"])
         output = call_model(
@@ -305,24 +314,57 @@ if __name__ == "__main__":
         selected_model
     )
 
-    results = run_all_datasets(
-        "data",
-        model_runtime,
-        selected_model
-    )
+    # ==========================================
+    # RUN SINGLE CATEGORY
+    # ==========================================
 
-    if results:
-        metrics = compute_metrics(results)
-        category_metrics = compute_category_metrics(results)
-        failures = extract_failures(results)
+    if args.category:
 
-        print("\n📊 Overall Metrics:", metrics)
-        print("\n📂 Category Metrics:")
-        for k, v in category_metrics.items():
-            print(f"{k}: {v}")
+        dataset_path = os.path.join(
+            DATA_DIR,
+            f"{args.category}.json"
+        )
 
-        print(f"\n❌ Total Failures: {len(failures)}")
-        save_full_report(results, metrics, category_metrics)
-        print("\n✅ Reports saved in /results folder")
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(
+                f"Category dataset not found: {dataset_path}"
+            )
+
+        print(f"\nRunning category: {args.category}")
+
+        results = run_and_evaluate(
+            dataset_path,
+            model_runtime,
+            selected_model
+        )
+
+        for r in results:
+            r["category"] = args.category
+
+    # ==========================================
+    # RUN ALL CATEGORIES
+    # ==========================================
+
     else:
-        print("No results generated. Check your /data folder.")
+
+        results = run_all_datasets(
+            DATA_DIR,
+            model_runtime,
+            selected_model
+        )
+
+        if results:
+            metrics = compute_metrics(results)
+            category_metrics = compute_category_metrics(results)
+            failures = extract_failures(results)
+
+            print("\n📊 Overall Metrics:", metrics)
+            print("\n📂 Category Metrics:")
+            for k, v in category_metrics.items():
+                print(f"{k}: {v}")
+
+            print(f"\n❌ Total Failures: {len(failures)}")
+            save_full_report(results, metrics, category_metrics)
+            print("\n✅ Reports saved in /results folder")
+        else:
+            print("No results generated. Check your /data folder.")
