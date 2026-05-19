@@ -12,6 +12,7 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 # Use the latest gemini-2.5-flash-lite model
 MODEL_ID = "gemini-2.5-flash-lite"
 
+
 def evaluate_response(input_text, output, expected):
 
     # System instructions keep the model focused and brief without repeating it in the prompt
@@ -65,7 +66,13 @@ def evaluate_response(input_text, output, expected):
         )
 
         # The SDK handles JSON parsing automatically when using response_mime_type
-        return response.parsed
+        if response.parsed:
+            return response.parsed
+
+        return {
+            "result": "ERROR",
+            "reason": "Model returned empty or invalid JSON"
+        }
 
     except Exception as e:
         return {

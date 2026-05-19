@@ -123,7 +123,7 @@ def call_model(prompt, model_runtime):
                         "content": prompt
                     }
                 ],
-                max_tokens=config["max_output_tokens"],
+                max_completion_tokens=config["max_output_tokens"],
                 temperature=config["temperature"],
             )
 
@@ -223,7 +223,15 @@ def run_and_evaluate(data_path, model_runtime, model_key):
 
         # FIXED: Call the imported evaluator function
         eval_result = evaluate_response(
-            item["input"], output, item["expected_behavior"])
+            item["input"],
+            output,
+            item["expected_behavior"]
+        )
+        if not eval_result:
+            eval_result = {
+                "result": "ERROR",
+                "reason": "Evaluation returned None"
+            }
 
         results.append({
             "id": item["id"],
