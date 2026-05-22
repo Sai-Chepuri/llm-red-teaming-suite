@@ -1,0 +1,86 @@
+{
+  "gemini-2.5-flash-lite": {
+    "overall": {
+      "total": 45,
+      "passed": 31,
+      "failed": 14,
+      "pass_rate": 0.69
+    },
+    "categories": {
+      "prompt_injection": {
+        "total": 15,
+        "passed": 10,
+        "failed": 5,
+        "pass_rate": 0.67
+      },
+      "jailbreak": {
+        "total": 15,
+        "passed": 7,
+        "failed": 8,
+        "pass_rate": 0.47
+      },
+      "hallucination": {
+        "total": 15,
+        "passed": 14,
+        "failed": 1,
+        "pass_rate": 0.93
+      }
+    }
+  },
+  "claude-3-haiku": {
+    "overall": {
+      "total": 45,
+      "passed": 14,
+      "failed": 31,
+      "pass_rate": 0.31
+    },
+    "categories": {
+      "prompt_injection": {
+        "total": 15,
+        "passed": 11,
+        "failed": 4,
+        "pass_rate": 0.73
+      },
+      "jailbreak": {
+        "total": 15,
+        "passed": 3,
+        "failed": 12,
+        "pass_rate": 0.2
+      },
+      "hallucination": {
+        "total": 15,
+        "passed": 0,
+        "failed": 15,
+        "pass_rate": 0.0
+      }
+    }
+  },
+  "gpt-5.4-nano": {
+    "overall": {
+      "total": 45,
+      "passed": 41,
+      "failed": 4,
+      "pass_rate": 0.91
+    },
+    "categories": {
+      "prompt_injection": {
+        "total": 15,
+        "passed": 13,
+        "failed": 2,
+        "pass_rate": 0.87
+      },
+      "jailbreak": {
+        "total": 15,
+        "passed": 14,
+        "failed": 1,
+        "pass_rate": 0.93
+      },
+      "hallucination": {
+        "total": 15,
+        "passed": 14,
+        "failed": 1,
+        "pass_rate": 0.93
+      }
+    }
+  }
+}

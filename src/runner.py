@@ -183,6 +183,12 @@ def parse_args():
         help="Model to evaluate"
     )
 
+    parser.add_argument(
+        "--compare-all",
+        action="store_true",
+        help="Run benchmark across all configured models"
+    )
+
     return parser.parse_args()
 
 
@@ -210,7 +216,8 @@ def run_and_evaluate(data_path, model_runtime, model_key):
     results = []
 
     safe_config = sanitize_model_config(
-        SUPPORTED_MODELS[model_key]
+        # SUPPORTED_MODELS[model_key]
+        model_runtime["config"]
     )
 
     print(f"Testing {len(data)} items with {safe_config}...")
@@ -244,7 +251,7 @@ def run_and_evaluate(data_path, model_runtime, model_key):
     return results
 
 
-def run_all_datasets(data_dir="data", model_runtime=None, model_key=None):
+def run_all_datasets(data_dir, model_runtime=None, model_key=None):
     all_results = []
     # Ensure directory exists before listing
     if not os.path.exists(data_dir):
@@ -312,6 +319,109 @@ def save_full_report(results, metrics, category_metrics):
         json.dump(category_metrics, f, indent=2)
 
 
+def benchmark_all_models():
+    # ==========================================
+    # Run evaluation pipeline across all configured models.
+    # ==========================================
+
+    benchmark_results = {}
+
+    for model_key in SUPPORTED_MODELS.keys():
+
+        print(f"\n Benchmarking: {model_key}")
+
+        model_runtime = initialize_model(model_key)
+
+        # Run evaluation
+        results = run_all_datasets(
+            DATA_DIR,
+            model_runtime,
+            model_key
+        )
+
+        # Compute metrics
+        overall_metrics = compute_metrics(results)
+
+        category_metrics = compute_category_metrics(results)
+
+        benchmark_results[model_key] = {
+            "overall": overall_metrics,
+            "categories": category_metrics
+        }
+
+    return benchmark_results
+
+
+def print_benchmark_table(benchmark_results):
+
+    print("\n" + "=" * 80)
+    print("LLM SAFETY BENCHMARK RESULTS")
+    print("=" * 80)
+
+    header = (
+        f"{'MODEL':30}"
+        f"{'OVERALL':15}"
+        f"{'PROMPT_INJ':15}"
+        f"{'JAILBREAK':15}"
+        f"{'HALLUCINATION':15}"
+    )
+
+    print(header)
+    print("-" * 80)
+
+    for model_name, data in benchmark_results.items():
+
+        overall = (
+            data["overall"]["pass_rate"]
+        )
+
+        prompt_inj = (
+            data["categories"]
+            .get("prompt_injection", {})
+            .get("pass_rate", "N/A")
+        )
+
+        jailbreak = (
+            data["categories"]
+            .get("jailbreak", {})
+            .get("pass_rate", "N/A")
+        )
+
+        hallucination = (
+            data["categories"]
+            .get("hallucination", {})
+            .get("pass_rate", "N/A")
+        )
+
+        row = (
+            f"{model_name:30}"
+            f"{str(overall):15}"
+            f"{str(prompt_inj):15}"
+            f"{str(jailbreak):15}"
+            f"{str(hallucination):15}"
+        )
+
+        print(row)
+
+    print("=" * 80)
+
+
+def save_benchmark_results(benchmark_results):
+
+    os.makedirs("results", exist_ok=True)
+
+    with open(
+        "results/model_benchmarks.json",
+        "w"
+    ) as f:
+
+        json.dump(
+            benchmark_results,
+            f,
+            indent=2
+        )
+
+
 if __name__ == "__main__":
     print("\nStarting Red Team Evaluation Pipeline\n")
 
@@ -376,3 +486,46 @@ if __name__ == "__main__":
             print("\n✅ Reports saved in /results folder")
         else:
             print("No results generated. Check your /data folder.")
+
+    # =====================================================
+    # COMPARE ALL MODELS
+    # =====================================================
+
+    if args.compare_all:
+
+        benchmark_results = benchmark_all_models()
+
+        print_benchmark_table(
+            benchmark_results
+        )
+
+        save_benchmark_results(
+            benchmark_results
+        )
+
+        print(
+            "\n✅ Benchmark results saved"
+        )
+
+    # =====================================================
+    # SINGLE MODEL EXECUTION
+    # =====================================================
+
+    else:
+
+        selected_model = args.model
+
+        print(f"\nUsing model: {selected_model}")
+
+        model_runtime = initialize_model(
+            selected_model
+        )
+
+        results = run_all_datasets(
+            DATA_DIR,
+            model_runtime
+        )
+
+        metrics = compute_metrics(results)
+
+        print(metrics)
