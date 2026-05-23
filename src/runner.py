@@ -19,6 +19,7 @@ from config.settings import (
     DATA_DIR,
 )
 
+RESULTS_DIR = "results"
 load_dotenv()
 
 # Modern Dynamic SDK Initialization
@@ -28,6 +29,12 @@ def initialize_model(model_key):
     """
     Initialize model runtime dynamically based on provider configuration.
     """
+
+    if model_key not in SUPPORTED_MODELS:
+        raise ValueError(
+            f"Unsupported model '{model_key}'. "
+            f"Supported models: {list(SUPPORTED_MODELS.keys())}"
+        )
 
     model_config = SUPPORTED_MODELS[model_key]
     provider = model_config["provider"]
@@ -73,7 +80,7 @@ def initialize_model(model_key):
 
 
 def load_data(path):
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -147,6 +154,9 @@ def call_model(prompt, model_runtime):
                 ]
             )
 
+            if not response.content or not response.content[0].text:
+                return "ERROR: Empty response"
+
             return response.content[0].text
 
         else:
@@ -213,6 +223,11 @@ def sanitize_model_config(model_config):
 
 def run_and_evaluate(data_path, model_runtime, model_key):
     data = load_data(data_path)
+
+    if not data:
+        print(f"Warning: Empty dataset -> {data_path}")
+        return []
+
     results = []
 
     safe_config = sanitize_model_config(
@@ -222,13 +237,39 @@ def run_and_evaluate(data_path, model_runtime, model_key):
 
     print(f"Testing {len(data)} items with {safe_config}...")
     for item in tqdm(data):
-        # output = call_model(item["input"])
+
+        # ==========================================
+        # DATASET SCHEMA VALIDATION
+        # ==========================================
+
+        required_fields = {
+            "id",
+            "input",
+            "expected_behavior"
+        }
+
+        missing = required_fields - item.keys()
+
+        if missing:
+            print(
+                f"Skipping malformed item "
+                f"in {data_path}: missing {missing}"
+            )
+            continue
+
+        # ==========================================
+        # MODEL EXECUTION
+        # ==========================================
+
         output = call_model(
             item["input"],
             model_runtime
         )
 
-        # FIXED: Call the imported evaluator function
+        # ==========================================
+        # EVALUATION
+        # ==========================================
+
         eval_result = evaluate_response(
             item["input"],
             output,
@@ -258,7 +299,7 @@ def run_all_datasets(data_dir, model_runtime=None, model_key=None):
         print(f"Error: Directory '{data_dir}' not found.")
         return []
 
-    for file in os.listdir(data_dir):
+    for file in sorted(os.listdir(data_dir)):
         if file.endswith(".json"):
             path = os.path.join(data_dir, file)
             category_name = file.replace(".json", "")
@@ -283,7 +324,7 @@ def compute_metrics(results):
         "total": total,
         "passed": passed,
         "failed": total - passed,
-        "pass_rate": round(passed / total, 2)
+        "pass_rate": round((passed / total) * 100, 2)
     }
 
 
@@ -300,7 +341,7 @@ def compute_category_metrics(results):
             "total": total,
             "passed": passed,
             "failed": total - passed,
-            "pass_rate": round(passed / total, 2)
+            "pass_rate": round((passed / total) * 100, 2)
         }
     return metrics
 
@@ -310,12 +351,12 @@ def extract_failures(results):
 
 
 def save_full_report(results, metrics, category_metrics):
-    os.makedirs("results", exist_ok=True)
-    with open("results/detailed_results.json", "w") as f:
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    with open(os.path.join(RESULTS_DIR, "detailed_results.json"), "w") as f:
         json.dump(results, f, indent=2)
-    with open("results/summary.json", "w") as f:
+    with open(os.path.join(RESULTS_DIR, "summary.json"), "w") as f:
         json.dump(metrics, f, indent=2)
-    with open("results/category_metrics.json", "w") as f:
+    with open(os.path.join(RESULTS_DIR, "category_metrics.json"), "w") as f:
         json.dump(category_metrics, f, indent=2)
 
 
@@ -408,10 +449,10 @@ def print_benchmark_table(benchmark_results):
 
 def save_benchmark_results(benchmark_results):
 
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
 
     with open(
-        "results/model_benchmarks.json",
+        os.path.join(RESULTS_DIR, "model_benchmarks.json"),
         "w"
     ) as f:
 
@@ -426,66 +467,11 @@ if __name__ == "__main__":
     print("\nStarting Red Team Evaluation Pipeline\n")
 
     args = parse_args()
-    selected_model = args.model
-    print(f"\nUsing model: {selected_model}")
-    model_runtime = initialize_model(
-        selected_model
-    )
-
-    # ==========================================
-    # RUN SINGLE CATEGORY
-    # ==========================================
-
-    if args.category:
-
-        dataset_path = os.path.join(
-            DATA_DIR,
-            f"{args.category}.json"
-        )
-
-        if not os.path.exists(dataset_path):
-            raise FileNotFoundError(
-                f"Category dataset not found: {dataset_path}"
-            )
-
-        print(f"\nRunning category: {args.category}")
-
-        results = run_and_evaluate(
-            dataset_path,
-            model_runtime,
-            selected_model
-        )
-
-        for r in results:
-            r["category"] = args.category
-
-    # ==========================================
-    # RUN ALL CATEGORIES
-    # ==========================================
-
-    else:
-
-        results = run_all_datasets(
-            DATA_DIR,
-            model_runtime,
-            selected_model
-        )
-
-        if results:
-            metrics = compute_metrics(results)
-            category_metrics = compute_category_metrics(results)
-            failures = extract_failures(results)
-
-            print("\n📊 Overall Metrics:", metrics)
-            print("\n📂 Category Metrics:")
-            for k, v in category_metrics.items():
-                print(f"{k}: {v}")
-
-            print(f"\n❌ Total Failures: {len(failures)}")
-            save_full_report(results, metrics, category_metrics)
-            print("\n✅ Reports saved in /results folder")
-        else:
-            print("No results generated. Check your /data folder.")
+    # selected_model = args.model
+    # print(f"\nUsing model: {selected_model}")
+    # model_runtime = initialize_model(
+    #     selected_model
+    # )
 
     # =====================================================
     # COMPARE ALL MODELS
@@ -521,11 +507,62 @@ if __name__ == "__main__":
             selected_model
         )
 
-        results = run_all_datasets(
-            DATA_DIR,
-            model_runtime
-        )
+        # ==========================================
+        # RUN SINGLE CATEGORY
+        # ==========================================
 
-        metrics = compute_metrics(results)
+        if args.category:
 
-        print(metrics)
+            dataset_path = os.path.join(
+                DATA_DIR,
+                f"{args.category}.json"
+            )
+
+            if not os.path.exists(dataset_path):
+                raise FileNotFoundError(
+                    f"Category dataset not found: {dataset_path}"
+                )
+
+            print(f"\nRunning category: {args.category}")
+
+            results = run_and_evaluate(
+                dataset_path,
+                model_runtime,
+                selected_model
+            )
+
+            for r in results:
+                r["category"] = args.category
+
+        # ==========================================
+        # RUN ALL CATEGORIES
+        # ==========================================
+
+        else:
+
+            results = run_all_datasets(
+                DATA_DIR,
+                model_runtime,
+                selected_model
+            )
+
+        # ==========================================
+        # METRICS + REPORTS
+        # ==========================================
+
+        if results:
+            metrics = compute_metrics(results)
+            category_metrics = compute_category_metrics(results)
+            failures = extract_failures(results)
+
+            print("\n Overall Metrics:", metrics)
+            print("\n Category Metrics:")
+            for k, v in category_metrics.items():
+                print(f"{k}: {v}")
+
+            print(f"\n❌ Total Failures: {len(failures)}")
+
+            save_full_report(results, metrics, category_metrics)
+            print("\n✅ Reports saved in /results folder")
+        else:
+            print("No results generated. Check your /data folder.")
