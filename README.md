@@ -1,4 +1,4 @@
-# LLM Red Teaming Suite
+# Multi-Model LLM Red Teaming & Benchmarking Platform
 
 A structured adversarial testing and evaluation framework for Large Language Models (LLMs) using automated red teaming, benchmark-style evaluation, and LLM-as-a-judge scoring.
 
@@ -6,7 +6,7 @@ A structured adversarial testing and evaluation framework for Large Language Mod
 
 # Overview
 
-This project simulates how AI Evaluation Engineers and AI Safety teams test LLMs against adversarial prompts such as:
+This project is a production-style AI evaluation framework designed for adversarial testing, multi-model benchmarking, and automated LLM safety evaluation. This project simulates how AI Evaluation Engineers and AI Safety teams test LLMs against adversarial prompts such as:
 
 * Prompt injection attacks
 * Jailbreak attempts
@@ -20,6 +20,15 @@ The framework automatically:
 4. Computes benchmark metrics
 5. Generates structured reports
 
+The framework also includes:
+
+- Multi-model benchmarking
+- Provider abstraction architecture
+- Fault-tolerant execution
+- Automatic checkpoint recovery
+- Category-level benchmarking
+- Structured benchmark reporting
+
 The project is designed to mimic real-world AI evaluation workflows used for:
 
 * AI Safety Testing
@@ -29,7 +38,17 @@ The project is designed to mimic real-world AI evaluation workflows used for:
 * Evaluation Framework Design
 
 ---
+# Supported Models
 
+| Provider | Models |
+|---|---|
+| Google | Gemini 2.5 Flash Lite |
+| Anthropic | Claude 3 Haiku |
+| OpenAI | GPT-5.4 Nano |
+
+The architecture is provider-agnostic and designed for easy extension to additional models.
+
+---
 # Key Concepts Demonstrated
 
 ## Adversarial Testing
@@ -81,42 +100,75 @@ The framework computes:
 ```text
 Adversarial Dataset
         ↓
-LLM Under Test (Gemini 2.5 Flash)
+Dynamic Model Router
         ↓
-Generated Response
+LLM Under Test
         ↓
-LLM Evaluator (LLM-as-a-Judge)
+LLM-as-a-Judge Evaluator
         ↓
-PASS / FAIL Decision
+Benchmark Metrics
         ↓
-Metrics + Reports
+Reports + Checkpoints
 ```
 
 ---
 
+# Key Engineering Features
+
+## Multi-Model Benchmarking
+Benchmark multiple LLM providers using a unified evaluation pipeline.
+
+## Provider Abstraction Layer
+Dynamically routes inference requests to Gemini, Claude, or GPT providers using a centralized configuration system.
+
+## Fault-Tolerant Evaluation
+Supports:
+- automatic retries
+- exponential backoff
+- timeout handling
+- resumable execution
+
+## Incremental Checkpointing
+Automatically saves progress after every completed evaluation to prevent benchmark loss during interruptions.
+
+## Resumable Pipelines
+Evaluation resumes from the last completed test after crashes or API disconnections.
+
+## LLM-as-a-Judge
+Uses model-based evaluation to score safety and policy compliance.
+
+## Category-Level Benchmarking
+Computes metrics by attack category including:
+- prompt injection
+- jailbreak attacks
+- hallucination robustness
+  
+---
 # 📁 Project Structure
 
 ```text
 llm-red-teaming-suite/
 │
+├── config/
+│   ├── settings.py
+│
+├── checkpoints/
+│
 ├── data/
-│   ├── prompt_injection.json
-│   ├── jailbreak.json
-│   ├── hallucination.json
+│
+├── failed_requests/
+│
+├── logs/
+│
+├── results/
 │
 ├── src/
 │   ├── runner.py
 │   ├── evaluator.py
-│   ├── prompts.py
-│
-├── results/
-│   ├── detailed_results.json
-│   ├── summary.json
-│   ├── category_metrics.json
+│   ├── logger.py
 │
 ├── requirements.txt
 ├── .env
-├── .gitignore
 ├── README.md
 ```
 
@@ -176,12 +228,23 @@ GEMINI_API_KEY=your_api_key_here
 
 # Running the Evaluation Pipeline
 
-Run the complete red teaming benchmark:
+## Run Single Model
 
 ```bash
-python src/runner.py
+python -m src.runner --model claude-3-haiku
 ```
 
+## Run Specific Attack Category
+
+```bash
+python -m src.runner --category jailbreak
+```
+
+## Run Full Multi-Model Benchmark
+
+```bash
+python -m src.runner --compare-all
+```
 ---
 
 # Example Console Output
@@ -209,6 +272,21 @@ hallucination: {'pass_rate': 1.0}
 ❌ Total Failures: 8
 
 ✅ Reports saved in /results folder
+```
+
+# 📊 Example Benchmark Results
+
+```text
+================================================================================
+LLM SAFETY BENCHMARK RESULTS
+================================================================================
+
+MODEL                        OVERALL       PROMPT_INJ    JAILBREAK
+--------------------------------------------------------------------------------
+gemini-2.5-flash-lite       0.72          0.68          0.61
+claude-3-haiku              0.85          0.81          0.83
+gpt-5.4-nano                0.91          0.89          0.88
+================================================================================
 ```
 
 ---
@@ -314,6 +392,21 @@ Contains:
 
 ---
 
+# Reliability Engineering
+
+The framework includes production-style resiliency features:
+
+- automatic retry handling
+- exponential backoff
+- API timeout protection
+- checkpoint persistence
+- resumable evaluations
+- failure logging
+
+This allows long-running benchmark evaluations to recover gracefully from API failures or disconnections without losing progress.
+
+---
+
 # Engineering Challenges Solved
 
 ## Structured Adversarial Evaluation
@@ -350,7 +443,6 @@ Unsafe outputs are isolated for easier debugging and analysis.
 
 Planned upgrades include:
 
-* Cross-model evaluation
 * CSV report export
 * Visualization dashboards
 * Tool-use attack testing
@@ -365,14 +457,16 @@ Planned upgrades include:
 
 This project demonstrates practical experience with:
 
-* AI Evaluation Engineering
-* LLM Red Teaming
-* Adversarial Testing
-* Evaluation Framework Design
-* Benchmark Construction
-* Automated Safety Evaluation
-* Python Automation
-* LLM Reliability Analysis
+- AI Evaluation Engineering
+- LLM Red Teaming
+- Multi-Model Benchmarking
+- Adversarial Testing
+- Provider Abstraction Architecture
+- Fault-Tolerant Pipelines
+- Evaluation Framework Design
+- Reliability Engineering
+- Automated Benchmarking
+- LLM Safety Evaluation
 
 ---
 
