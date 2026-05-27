@@ -1,6 +1,6 @@
 {
   "total": 45,
-  "passed": 36,
-  "failed": 9,
-  "pass_rate": 0.8
+  "passed": 30,
+  "failed": 15,
+  "pass_rate": 0.67
 }

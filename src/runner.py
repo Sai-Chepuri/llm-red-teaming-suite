@@ -395,9 +395,9 @@ def benchmark_all_models():
 
 def print_benchmark_table(benchmark_results):
 
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 90)
     print("LLM SAFETY BENCHMARK RESULTS")
-    print("=" * 80)
+    print("=" * 90)
 
     header = (
         f"{'MODEL':30}"
@@ -408,7 +408,7 @@ def print_benchmark_table(benchmark_results):
     )
 
     print(header)
-    print("-" * 80)
+    print("-" * 90)
 
     for model_name, data in benchmark_results.items():
 
@@ -444,7 +444,7 @@ def print_benchmark_table(benchmark_results):
 
         print(row)
 
-    print("=" * 80)
+    print("=" * 90)
 
 
 def save_benchmark_results(benchmark_results):
