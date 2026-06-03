@@ -11,6 +11,8 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 
+from config import settings
+
 from .evaluator import evaluate_response
 
 from config.settings import (
@@ -77,6 +79,69 @@ def initialize_model(model_key):
         "client": client,
         "config": model_config
     }
+
+
+def select_judge_model(target_model_key, override_model=None):
+    """
+    Select a judge model that is NOT
+    the same as the target model.
+    """
+
+    # ==========================================
+    # CLI override has highest priority
+    # ==========================================
+
+    if override_model:
+
+        if override_model == target_model_key:
+            raise ValueError(
+                "Judge model cannot be "
+                "the same as target model."
+            )
+
+        return override_model
+
+    # ==========================================
+    # Config default
+    # ==========================================
+
+    default_judge = getattr(
+        settings,
+        "DEFAULT_JUDGE_MODEL",
+        None
+    )
+
+    if default_judge:
+
+        if default_judge == target_model_key:
+            raise ValueError(
+                "DEFAULT_JUDGE_MODEL cannot "
+                "match target model."
+            )
+
+        return default_judge
+
+    # ==========================================
+    # Automatic fallback selection
+    # ==========================================
+
+    preferred_order = [
+        "gpt-5.4-nano",
+        "claude-haiku-4-5",
+        "gemini-2.5-flash-lite"
+    ]
+
+    for candidate in preferred_order:
+
+        if (
+            candidate != target_model_key
+            and candidate in SUPPORTED_MODELS
+        ):
+            return candidate
+
+    raise ValueError(
+        "No valid judge model available."
+    )
 
 
 def load_data(path):
@@ -199,6 +264,12 @@ def parse_args():
         help="Run benchmark across all configured models"
     )
 
+    parser.add_argument(
+        "--judge-model",
+        type=str,
+        help="Optional override judge model"
+    )
+
     return parser.parse_args()
 
 
@@ -221,7 +292,10 @@ def sanitize_model_config(model_config):
     }
 
 
-def run_and_evaluate(data_path, model_runtime, model_key):
+# def run_and_evaluate(data_path, model_runtime, model_key):
+
+def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
+
     data = load_data(data_path)
 
     if not data:
@@ -273,7 +347,8 @@ def run_and_evaluate(data_path, model_runtime, model_key):
         eval_result = evaluate_response(
             item["input"],
             output,
-            item["expected_behavior"]
+            item["expected_behavior"],
+            judge_runtime=judge_runtime
         )
         if not eval_result:
             eval_result = {
@@ -287,12 +362,19 @@ def run_and_evaluate(data_path, model_runtime, model_key):
             "output": output,
             "expected": item["expected_behavior"],
             "evaluation": eval_result.get("result", "ERROR"),
-            "reason": eval_result.get("reason", "N/A")
+            "reason": eval_result.get("reason", "N/A"),
+            "target_model": model_key,
+            "judge_model": (
+                judge_runtime["config"]["model_name"]
+                if judge_runtime else None
+            )
         })
     return results
 
 
-def run_all_datasets(data_dir, model_runtime=None, model_key=None):
+# def run_all_datasets(data_dir, model_runtime=None, model_key=None):
+def run_all_datasets(data_dir, model_runtime=None, model_key=None, judge_runtime=None, judge_model_key=None):
+
     all_results = []
     # Ensure directory exists before listing
     if not os.path.exists(data_dir):
@@ -307,7 +389,11 @@ def run_all_datasets(data_dir, model_runtime=None, model_key=None):
 
             # FIXED: Used run_and_evaluate inside run_all_datasets
             results = run_and_evaluate(
-                path, model_runtime, model_key)
+                path,
+                model_runtime=model_runtime,
+                model_key=model_key,
+                judge_runtime=judge_runtime
+            )
             for r in results:
                 r["category"] = category_name
             all_results.extend(results)
@@ -372,14 +458,38 @@ def benchmark_all_models():
         print(f"\n Benchmarking: {model_key}")
 
         model_runtime = initialize_model(model_key)
+        judge_runtime = None
+        judge_model_key = None
+
+        if settings.USE_LLM_AS_JUDGE:
+
+            judge_model_key = select_judge_model(
+                target_model_key=model_key
+            )
+
+            print(
+                f"Judge model: "
+                f"{judge_model_key}"
+            )
+
+            judge_runtime = initialize_model(
+                judge_model_key
+            )
 
         # Run evaluation
+        # results = run_all_datasets(
+        #     DATA_DIR,
+        #     model_runtime,
+        #     model_key
+        # )
+
         results = run_all_datasets(
             DATA_DIR,
             model_runtime,
-            model_key
+            model_key,
+            judge_runtime=judge_runtime,
+            judge_model_key=judge_model_key
         )
-
         # Compute metrics
         overall_metrics = compute_metrics(results)
 
@@ -501,11 +611,30 @@ if __name__ == "__main__":
 
         selected_model = args.model
 
-        print(f"\nUsing model: {selected_model}")
+        print(f"\nAnswer Model: {selected_model}")
 
         model_runtime = initialize_model(
             selected_model
         )
+
+        judge_runtime = None
+        judge_model_key = None
+
+        if settings.USE_LLM_AS_JUDGE:
+
+            judge_model_key = select_judge_model(
+                target_model_key=selected_model,
+                override_model=args.judge_model
+            )
+
+            print(
+                f"Judge model: "
+                f"{judge_model_key}"
+            )
+
+            judge_runtime = initialize_model(
+                judge_model_key
+            )
 
         # ==========================================
         # RUN SINGLE CATEGORY
@@ -528,7 +657,8 @@ if __name__ == "__main__":
             results = run_and_evaluate(
                 dataset_path,
                 model_runtime,
-                selected_model
+                selected_model,
+                judge_runtime=judge_runtime
             )
 
             for r in results:
@@ -540,10 +670,18 @@ if __name__ == "__main__":
 
         else:
 
+            # results = run_all_datasets(
+            #     DATA_DIR,
+            #     model_runtime,
+            #     selected_model
+            # )
+
             results = run_all_datasets(
                 DATA_DIR,
                 model_runtime,
-                selected_model
+                selected_model,
+                judge_runtime=judge_runtime,
+                judge_model_key=judge_model_key
             )
 
         # ==========================================

@@ -20,9 +20,9 @@ SUPPORTED_MODELS = {
     },
 
     # Anthropic Claude
-    "claude-3-haiku": {
+    "claude-haiku-4-5": {
         "provider": "anthropic",
-        "model_name": "claude-3-haiku-20240307",
+        "model_name": "claude-haiku-4-5",
         "api_key": os.getenv("ANTHROPIC_API_KEY"),
         "temperature": 0.1,
         "max_output_tokens": 2048,
@@ -37,6 +37,18 @@ SUPPORTED_MODELS = {
         "max_output_tokens": 2048,
     },
 }
+
+# Judge configuration
+USE_LLM_AS_JUDGE = True
+
+JUDGE_MODEL = "gpt-5.4-nano"
+
+ENABLE_CROSS_MODEL_JUDGING = True
+
+if JUDGE_MODEL not in SUPPORTED_MODELS:
+    raise ValueError(
+        f"Unsupported judge model: {JUDGE_MODEL}"
+    )
 
 # =========================================================
 # DATASET CONFIGURATION
