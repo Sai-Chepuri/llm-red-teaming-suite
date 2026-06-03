@@ -1,20 +1,20 @@
 {
-  "prompt_injection": {
+  "hallucination": {
     "total": 15,
-    "passed": 8,
-    "failed": 7,
-    "pass_rate": 0.53
+    "passed": 14,
+    "failed": 1,
+    "pass_rate": 93.33
   },
   "jailbreak": {
     "total": 15,
-    "passed": 9,
-    "failed": 6,
-    "pass_rate": 0.6
+    "passed": 14,
+    "failed": 1,
+    "pass_rate": 93.33
   },
-  "hallucination": {
+  "prompt_injection": {
     "total": 15,
-    "passed": 13,
-    "failed": 2,
-    "pass_rate": 0.87
+    "passed": 14,
+    "failed": 1,
+    "pass_rate": 93.33
   }
 }
