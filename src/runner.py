@@ -1,6 +1,14 @@
+from config import settings
+from config.settings import (
+    DEFAULT_MODEL,
+    SUPPORTED_MODELS,
+    DATA_DIR,
+)
 import json
 import os
+import sys
 import argparse
+from pathlib import Path
 
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -11,15 +19,16 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 
-from config import settings
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-from .evaluator import evaluate_response
 
-from config.settings import (
-    DEFAULT_MODEL,
-    SUPPORTED_MODELS,
-    DATA_DIR,
-)
+try:
+    from .evaluator import evaluate_response
+except ImportError:
+    from evaluator import evaluate_response
+
 
 RESULTS_DIR = "results"
 load_dotenv()
@@ -95,10 +104,8 @@ def select_judge_model(target_model_key, override_model=None):
 
         if override_model == target_model_key:
             raise ValueError(
-                "Judge model cannot be "
-                "the same as target model."
+                f"Judge model cannot be same as target model: {target_model_key}"
             )
-
         return override_model
 
     # ==========================================
@@ -112,11 +119,10 @@ def select_judge_model(target_model_key, override_model=None):
     )
 
     if default_judge:
-
         if default_judge == target_model_key:
             raise ValueError(
-                "DEFAULT_JUDGE_MODEL cannot "
-                "match target model."
+                f"DEFAULT_JUDGE_MODEL cannot "
+                f"match target model: {target_model_key}"
             )
 
         return default_judge
@@ -294,7 +300,7 @@ def sanitize_model_config(model_config):
 
 # def run_and_evaluate(data_path, model_runtime, model_key):
 
-def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
+def run_and_evaluate(data_path, runtime_env, model_key, judge_runtime_env=None):
 
     data = load_data(data_path)
 
@@ -306,11 +312,10 @@ def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
 
     safe_config = sanitize_model_config(
         # SUPPORTED_MODELS[model_key]
-        model_runtime["config"]
+        runtime_env["config"]
     )
-
     print(f"Testing {len(data)} items with {safe_config}...")
-    for item in tqdm(data):
+    for data_item in tqdm(data):
 
         # ==========================================
         # DATASET SCHEMA VALIDATION
@@ -322,7 +327,7 @@ def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
             "expected_behavior"
         }
 
-        missing = required_fields - item.keys()
+        missing = required_fields - data_item.keys()
 
         if missing:
             print(
@@ -336,8 +341,8 @@ def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
         # ==========================================
 
         output = call_model(
-            item["input"],
-            model_runtime
+            data_item["input"],
+            runtime_env
         )
 
         # ==========================================
@@ -345,10 +350,10 @@ def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
         # ==========================================
 
         eval_result = evaluate_response(
-            item["input"],
+            data_item["input"],
             output,
-            item["expected_behavior"],
-            judge_runtime=judge_runtime
+            data_item["expected_behavior"],
+            judge_runtime=judge_runtime_env
         )
         if not eval_result:
             eval_result = {
@@ -357,23 +362,23 @@ def run_and_evaluate(data_path, model_runtime, model_key, judge_runtime=None):
             }
 
         results.append({
-            "id": item["id"],
-            "input": item["input"],
+            "id": data_item["id"],
+            "input": data_item["input"],
             "output": output,
-            "expected": item["expected_behavior"],
+            "expected": data_item["expected_behavior"],
             "evaluation": eval_result.get("result", "ERROR"),
             "reason": eval_result.get("reason", "N/A"),
             "target_model": model_key,
             "judge_model": (
-                judge_runtime["config"]["model_name"]
-                if judge_runtime else None
+                judge_runtime_env["config"]["model_name"]
+                if judge_runtime_env else None
             )
         })
     return results
 
 
 # def run_all_datasets(data_dir, model_runtime=None, model_key=None):
-def run_all_datasets(data_dir, model_runtime=None, model_key=None, judge_runtime=None, judge_model_key=None):
+def run_all_datasets(data_dir, runtime_env=None, model_key=None, judge_runtime_env=None):
 
     all_results = []
     # Ensure directory exists before listing
@@ -387,12 +392,11 @@ def run_all_datasets(data_dir, model_runtime=None, model_key=None, judge_runtime
             category_name = file.replace(".json", "")
             print(f"\nRunning category: {category_name}")
 
-            # FIXED: Used run_and_evaluate inside run_all_datasets
             results = run_and_evaluate(
                 path,
-                model_runtime=model_runtime,
-                model_key=model_key,
-                judge_runtime=judge_runtime
+                runtime_env,
+                model_key,
+                judge_runtime_env=judge_runtime_env
             )
             for r in results:
                 r["category"] = category_name
@@ -400,12 +404,12 @@ def run_all_datasets(data_dir, model_runtime=None, model_key=None, judge_runtime
     return all_results
 
 
-def compute_metrics(results):
-    total = len(results)
+def compute_metrics(result_list):
+    total = len(result_list)
     if total == 0:
         return {"total": 0, "pass_rate": 0}
 
-    passed = sum(1 for r in results if r["evaluation"] == "PASS")
+    passed = sum(1 for r in result_list if r["evaluation"] == "PASS")
     return {
         "total": total,
         "passed": passed,
@@ -414,57 +418,57 @@ def compute_metrics(results):
     }
 
 
-def compute_category_metrics(results):
+def compute_category_metrics(result_list):
     category_stats = defaultdict(list)
-    for r in results:
-        category_stats[r["category"]].append(r)
+    for entry in result_list:
+        category_stats[entry["category"]].append(entry)
 
-    metrics = {}
+    category_metrics = {}
     for category, items in category_stats.items():
         total = len(items)
         passed = sum(1 for i in items if i["evaluation"] == "PASS")
-        metrics[category] = {
+        category_metrics[category] = {
             "total": total,
             "passed": passed,
             "failed": total - passed,
             "pass_rate": round((passed / total) * 100, 2)
         }
-    return metrics
+    return category_metrics
 
 
-def extract_failures(results):
-    return [r for r in results if r["evaluation"] == "FAIL"]
+def extract_failures(result_list):
+    return [item for item in result_list if item["evaluation"] == "FAIL"]
 
 
-def save_full_report(results, metrics, category_metrics):
+def save_full_report(result_list, metrics_data, category_metrics_payload):
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    with open(os.path.join(RESULTS_DIR, "detailed_results.json"), "w") as f:
-        json.dump(results, f, indent=2)
-    with open(os.path.join(RESULTS_DIR, "summary.json"), "w") as f:
-        json.dump(metrics, f, indent=2)
-    with open(os.path.join(RESULTS_DIR, "category_metrics.json"), "w") as f:
-        json.dump(category_metrics, f, indent=2)
+    with open(os.path.join(RESULTS_DIR, "detailed_results.json"), "w", encoding="utf-8") as f:
+        json.dump(result_list, f, indent=2)
+    with open(os.path.join(RESULTS_DIR, "summary.json"), "w", encoding="utf-8") as f:
+        json.dump(metrics_data, f, indent=2)
+    with open(os.path.join(RESULTS_DIR, "category_metrics.json"), "w", encoding="utf-8") as f:
+        json.dump(category_metrics_payload, f, indent=2)
 
 
-def benchmark_all_models():
+def benchmark_all_models(judge_override=None):
     # ==========================================
     # Run evaluation pipeline across all configured models.
     # ==========================================
 
-    benchmark_results = {}
+    benchmark_data = {}
 
     for model_key in SUPPORTED_MODELS.keys():
 
-        print(f"\n Benchmarking: {model_key}")
+        runtime = initialize_model(model_key)
 
-        model_runtime = initialize_model(model_key)
-        judge_runtime = None
+        judge_runtime_env = None
         judge_model_key = None
 
         if settings.USE_LLM_AS_JUDGE:
 
             judge_model_key = select_judge_model(
-                target_model_key=model_key
+                target_model_key=model_key,
+                override_model=judge_override
             )
 
             print(
@@ -472,38 +476,42 @@ def benchmark_all_models():
                 f"{judge_model_key}"
             )
 
-            judge_runtime = initialize_model(
-                judge_model_key
-            )
+            if judge_model_key == model_key:
+                raise ValueError(
+                    f"Judge model cannot equal target model: {model_key}"
+                )
 
-        # Run evaluation
-        # results = run_all_datasets(
-        #     DATA_DIR,
-        #     model_runtime,
-        #     model_key
-        # )
+            try:
+                judge_runtime_env = initialize_model(judge_model_key)
+            except Exception as e:
+                print(f"Error initializing judge model {judge_model_key}: {e}")
+                judge_runtime_env = None
 
-        results = run_all_datasets(
-            DATA_DIR,
-            model_runtime,
-            model_key,
-            judge_runtime=judge_runtime,
-            judge_model_key=judge_model_key
+        print(
+            f"\nBenchmarking "
+            f"target={model_key} "
+            f"judge={judge_model_key}"
         )
-        # Compute metrics
-        overall_metrics = compute_metrics(results)
 
-        category_metrics = compute_category_metrics(results)
+        model_results = run_all_datasets(
+            DATA_DIR,
+            runtime,
+            model_key,
+            judge_runtime_env=judge_runtime_env
+        )
+        overall_metrics = compute_metrics(model_results)
 
-        benchmark_results[model_key] = {
+        category_metrics = compute_category_metrics(model_results)
+
+        benchmark_data[model_key] = {
             "overall": overall_metrics,
             "categories": category_metrics
         }
 
-    return benchmark_results
+    return benchmark_data
 
 
-def print_benchmark_table(benchmark_results):
+def print_benchmark_table(benchmark_data):
 
     print("\n" + "=" * 90)
     print("LLM SAFETY BENCHMARK RESULTS")
@@ -520,7 +528,7 @@ def print_benchmark_table(benchmark_results):
     print(header)
     print("-" * 90)
 
-    for model_name, data in benchmark_results.items():
+    for model_name, data in benchmark_data.items():
 
         overall = (
             data["overall"]["pass_rate"]
@@ -557,17 +565,18 @@ def print_benchmark_table(benchmark_results):
     print("=" * 90)
 
 
-def save_benchmark_results(benchmark_results):
+def save_benchmark_results(benchmark_data):
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
     with open(
         os.path.join(RESULTS_DIR, "model_benchmarks.json"),
-        "w"
+        "w",
+        encoding="utf-8"
     ) as f:
 
         json.dump(
-            benchmark_results,
+            benchmark_data,
             f,
             indent=2
         )
@@ -589,7 +598,8 @@ if __name__ == "__main__":
 
     if args.compare_all:
 
-        benchmark_results = benchmark_all_models()
+        benchmark_results = benchmark_all_models(
+            judge_override=args.judge_model)
 
         print_benchmark_table(
             benchmark_results
@@ -613,7 +623,7 @@ if __name__ == "__main__":
 
         print(f"\nAnswer Model: {selected_model}")
 
-        model_runtime = initialize_model(
+        target_runtime = initialize_model(
             selected_model
         )
 
@@ -638,7 +648,7 @@ if __name__ == "__main__":
 
         # ==========================================
         # RUN SINGLE CATEGORY
-        # ==========================================
+        # ==================================
 
         if args.category:
 
@@ -654,53 +664,43 @@ if __name__ == "__main__":
 
             print(f"\nRunning category: {args.category}")
 
-            results = run_and_evaluate(
+            run_results = run_and_evaluate(
                 dataset_path,
-                model_runtime,
+                target_runtime,
                 selected_model,
-                judge_runtime=judge_runtime
+                judge_runtime_env=judge_runtime
             )
 
-            for r in results:
-                r["category"] = args.category
-
-        # ==========================================
-        # RUN ALL CATEGORIES
-        # ==========================================
+            for item in run_results:
+                item["category"] = args.category
 
         else:
 
-            # results = run_all_datasets(
-            #     DATA_DIR,
-            #     model_runtime,
-            #     selected_model
-            # )
-
-            results = run_all_datasets(
+            run_results = run_all_datasets(
                 DATA_DIR,
-                model_runtime,
+                target_runtime,
                 selected_model,
-                judge_runtime=judge_runtime,
-                judge_model_key=judge_model_key
+                judge_runtime_env=judge_runtime
             )
 
         # ==========================================
         # METRICS + REPORTS
-        # ==========================================
+        # ==================================
 
-        if results:
-            metrics = compute_metrics(results)
-            category_metrics = compute_category_metrics(results)
-            failures = extract_failures(results)
+        if run_results:
+            summary_metrics = compute_metrics(run_results)
+            category_metrics_data = compute_category_metrics(run_results)
+            failures = extract_failures(run_results)
 
-            print("\n Overall Metrics:", metrics)
+            print("\n Overall Metrics:", summary_metrics)
             print("\n Category Metrics:")
-            for k, v in category_metrics.items():
+            for k, v in category_metrics_data.items():
                 print(f"{k}: {v}")
 
             print(f"\n❌ Total Failures: {len(failures)}")
 
-            save_full_report(results, metrics, category_metrics)
+            save_full_report(run_results, summary_metrics,
+                             category_metrics_data)
             print("\n✅ Reports saved in /results folder")
         else:
             print("No results generated. Check your /data folder.")
