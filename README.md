@@ -8,9 +8,9 @@ A structured adversarial testing and evaluation framework for Large Language Mod
 
 This project is a production-style AI evaluation framework designed for adversarial testing, multi-model benchmarking, and automated LLM safety evaluation. This project simulates how AI Evaluation Engineers and AI Safety teams test LLMs against adversarial prompts such as:
 
-* Prompt injection attacks
-* Jailbreak attempts
-* Hallucination traps
+- Prompt injection attacks
+- Jailbreak attempts
+- Hallucination traps
 
 The framework automatically:
 
@@ -31,24 +31,26 @@ The framework also includes:
 
 The project is designed to mimic real-world AI evaluation workflows used for:
 
-* AI Safety Testing
-* LLM Benchmarking
-* Agent Reliability Evaluation
-* Prompt Security Analysis
-* Evaluation Framework Design
+- AI Safety Testing
+- LLM Benchmarking
+- Agent Reliability Evaluation
+- Prompt Security Analysis
+- Evaluation Framework Design
 
 ---
+
 # Supported Models
 
-| Provider | Models |
-|---|---|
-| Google | Gemini 2.5 Flash Lite |
-| Anthropic | Claude 3 Haiku |
-| OpenAI | GPT-5.4 Nano |
+| Provider  | Models                |
+| --------- | --------------------- |
+| Google    | Gemini 2.5 Flash Lite |
+| Anthropic | Claude 3 Haiku        |
+| OpenAI    | GPT-5.4 Nano          |
 
 The architecture is provider-agnostic and designed for easy extension to additional models.
 
 ---
+
 # Key Concepts Demonstrated
 
 ## Adversarial Testing
@@ -57,9 +59,9 @@ Systematically testing failure modes in LLM systems.
 
 Examples:
 
-* Prompt injection
-* Jailbreaking
-* Hallucination induction
+- Prompt injection
+- Jailbreaking
+- Hallucination induction
 
 ---
 
@@ -77,10 +79,10 @@ Using an LLM to evaluate another LLM’s output.
 
 The evaluator checks:
 
-* Safety compliance
-* Refusal behavior
-* Hallucination detection
-* Restricted content leakage
+- Safety compliance
+- Refusal behavior
+- Hallucination detection
+- Restricted content leakage
 
 ---
 
@@ -88,10 +90,10 @@ The evaluator checks:
 
 The framework computes:
 
-* Overall pass rate
-* Failure counts
-* Category-level performance
-* Structured evaluation reports
+- Overall pass rate
+- Failure counts
+- Category-level performance
+- Structured evaluation reports
 
 ---
 
@@ -116,34 +118,44 @@ Reports + Checkpoints
 # Key Engineering Features
 
 ## Multi-Model Benchmarking
+
 Benchmark multiple LLM providers using a unified evaluation pipeline.
 
 ## Provider Abstraction Layer
+
 Dynamically routes inference requests to Gemini, Claude, or GPT providers using a centralized configuration system.
 
 ## Fault-Tolerant Evaluation
+
 Supports:
+
 - automatic retries
 - exponential backoff
 - timeout handling
 - resumable execution
 
 ## Incremental Checkpointing
+
 Automatically saves progress after every completed evaluation to prevent benchmark loss during interruptions.
 
 ## Resumable Pipelines
+
 Evaluation resumes from the last completed test after crashes or API disconnections.
 
 ## LLM-as-a-Judge
+
 Uses model-based evaluation to score safety and policy compliance.
 
 ## Category-Level Benchmarking
+
 Computes metrics by attack category including:
+
 - prompt injection
 - jailbreak attacks
 - hallucination robustness
-  
+
 ---
+
 # 📁 Project Structure
 
 ```text
@@ -234,6 +246,19 @@ GEMINI_API_KEY=your_api_key_here
 python -m src.runner --model claude-3-haiku
 ```
 
+> Supported model keys:
+>
+> - `gemini-2.5-flash-lite`
+> - `claude-haiku-4-5`
+> - `gpt-5.4-nano`
+>
+> Accepted aliases:
+>
+> - `claude-3-haiku` → `claude-haiku-4-5`
+> - `claude-haiku` → `claude-haiku-4-5`
+> - `gpt-5.4` → `gpt-5.4-nano`
+> - `gemini-2.5` → `gemini-2.5-flash-lite`
+
 ## Run Specific Attack Category
 
 ```bash
@@ -245,6 +270,7 @@ python -m src.runner --category jailbreak
 ```bash
 python -m src.runner --compare-all
 ```
+
 ---
 
 # Example Console Output
@@ -333,9 +359,9 @@ Explain the 2023 Global AI Tax Law.
 
 The evaluator uses a second LLM pass to determine whether the response is:
 
-* Safe
-* Correct
-* Compliant with expected behavior
+- Safe
+- Correct
+- Compliant with expected behavior
 
 Evaluation output format:
 
@@ -354,10 +380,10 @@ Evaluation output format:
 
 Contains:
 
-* Input prompt
-* Model output
-* Evaluation result
-* Failure reason
+- Input prompt
+- Model output
+- Evaluation result
+- Failure reason
 
 ---
 
@@ -365,9 +391,9 @@ Contains:
 
 Contains:
 
-* Overall pass rate
-* Total tests
-* Failure counts
+- Overall pass rate
+- Total tests
+- Failure counts
 
 ---
 
@@ -375,8 +401,8 @@ Contains:
 
 Contains:
 
-* Category-level benchmarking
-* Pass/fail rates by attack type
+- Category-level benchmarking
+- Pass/fail rates by attack type
 
 ---
 
@@ -421,9 +447,9 @@ Gemini responses may return inconsistent formatting.
 
 The evaluator includes fallback parsing logic to handle:
 
-* Partial JSON
-* Extra text
-* Non-strict formatting
+- Partial JSON
+- Extra text
+- Non-strict formatting
 
 ---
 
@@ -443,13 +469,13 @@ Unsafe outputs are isolated for easier debugging and analysis.
 
 Planned upgrades include:
 
-* CSV report export
-* Visualization dashboards
-* Tool-use attack testing
-* Agent evaluation
-* RAG hallucination benchmarking
-* LangSmith integration
-* Weights & Biases experiment tracking
+- CSV report export
+- Visualization dashboards
+- Tool-use attack testing
+- Agent evaluation
+- RAG hallucination benchmarking
+- LangSmith integration
+- Weights & Biases experiment tracking
 
 ---
 
@@ -474,11 +500,11 @@ This project demonstrates practical experience with:
 
 Through this project, I learned:
 
-* How to structure adversarial datasets
-* How to automate LLM safety evaluation
-* How benchmark pipelines are designed
-* How to measure failure rates systematically
-* How to build reproducible AI evaluation workflows
+- How to structure adversarial datasets
+- How to automate LLM safety evaluation
+- How benchmark pipelines are designed
+- How to measure failure rates systematically
+- How to build reproducible AI evaluation workflows
 
 ---
 
@@ -488,11 +514,11 @@ Contributions are welcome.
 
 Potential contributions:
 
-* Additional attack datasets
-* Better evaluation heuristics
-* Multi-model benchmarking
-* Improved reporting
-* Visualization tools
+- Additional attack datasets
+- Better evaluation heuristics
+- Multi-model benchmarking
+- Improved reporting
+- Visualization tools
 
 ---
 

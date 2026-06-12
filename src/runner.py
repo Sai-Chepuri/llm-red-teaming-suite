@@ -100,23 +100,60 @@ def select_judge_model(target_model_key, override_model=None):
     # CLI override has highest priority
     # ==========================================
 
-    if override_model:
+    # Normalize common aliases and validate override
+    ALIASES = {
+        "claude-3-haiku": "claude-haiku-4-5",
+        "claude-haiku": "claude-haiku-4-5",
+        "gpt-5.4": "gpt-5.4-nano",
+        "gemini-2.5": "gemini-2.5-flash-lite",
+    }
 
-        if override_model == target_model_key:
+    if override_model:
+        # Direct alias or exact match
+        normalized = ALIASES.get(override_model, override_model)
+
+        if normalized == target_model_key:
             raise ValueError(
                 f"Judge model cannot be same as target model: {target_model_key}"
             )
-        return override_model
+
+        if normalized in SUPPORTED_MODELS:
+            print(f"Using judge override: {override_model} -> {normalized}")
+            return normalized
+
+        # Fuzzy match: sanitize strings and try to find a single supported key
+        def _sanitize(name: str) -> str:
+            return ''.join(ch for ch in (name or '').lower() if ch.isalnum())
+
+        target_sanitized = _sanitize(override_model)
+        matches = []
+        for key in SUPPORTED_MODELS.keys():
+            if target_sanitized in _sanitize(key) or _sanitize(key) in target_sanitized:
+                matches.append(key)
+
+        if len(matches) == 1:
+            chosen = matches[0]
+            if chosen == target_model_key:
+                raise ValueError(
+                    f"Judge model cannot be same as target model: {target_model_key}"
+                )
+            print(
+                f"Fuzzy matched judge override: {override_model} -> {chosen}")
+            return chosen
+
+        raise ValueError(
+            f"Unknown judge model override '{override_model}'. "
+            f"Supported models: {list(SUPPORTED_MODELS.keys())}. "
+            f"Candidates matched: {matches}"
+        )
 
     # ==========================================
     # Config default
     # ==========================================
 
-    default_judge = getattr(
-        settings,
-        "DEFAULT_JUDGE_MODEL",
-        None
-    )
+    # Support both DEFAULT_JUDGE_MODEL and legacy JUDGE_MODEL in settings
+    default_judge = getattr(settings, "DEFAULT_JUDGE_MODEL", None) or getattr(
+        settings, "JUDGE_MODEL", None)
 
     if default_judge:
         if default_judge == target_model_key:
@@ -260,7 +297,7 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_MODEL,
+        default=None,
         help="Model to evaluate"
     )
 
@@ -273,6 +310,7 @@ def parse_args():
     parser.add_argument(
         "--judge-model",
         type=str,
+        default=None,
         help="Optional override judge model"
     )
 
@@ -586,6 +624,9 @@ if __name__ == "__main__":
     print("\nStarting Red Team Evaluation Pipeline\n")
 
     args = parse_args()
+    # Print parsed args for clarity when debugging CLI overrides
+    print(
+        f"Parsed args: model={args.model}, compare_all={args.compare_all}, judge_model={args.judge_model}, category={args.category}")
     # selected_model = args.model
     # print(f"\nUsing model: {selected_model}")
     # model_runtime = initialize_model(
@@ -619,13 +660,12 @@ if __name__ == "__main__":
 
     else:
 
-        selected_model = args.model
+        # Determine selected model: prefer CLI override, else default
+        selected_model = args.model if args.model else DEFAULT_MODEL
 
         print(f"\nAnswer Model: {selected_model}")
 
-        target_runtime = initialize_model(
-            selected_model
-        )
+        target_runtime = initialize_model(selected_model)
 
         judge_runtime = None
         judge_model_key = None

@@ -1,4 +1,5 @@
 import json
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -95,10 +96,58 @@ def call_judge_model(evaluation_prompt, judge_runtime=None):
                 "reason": "Unsupported judge provider"
             }
 
-        return json.loads(raw_text)
+        return parse_judge_output(raw_text)
 
     except json.JSONDecodeError as e:
         return {
             "result": "ERROR",
             "reason": f"JSON parse error: {e}"
+        }
+
+
+def parse_judge_output(raw_text):
+    """
+    Parse judge response into a standardized verdict.
+    """
+    try:
+
+        if raw_text.startswith("```"):
+            raw_text = raw_text.replace("```json", "")
+            raw_text = raw_text.replace("```", "")
+            raw_text = raw_text.strip()
+
+        parsed = json.loads(raw_text)
+
+        if "result" in parsed and "reason" in parsed:
+
+            result = str(
+                parsed.get("result", "FAIL")
+            ).upper()
+
+            if result not in ["PASS", "FAIL"]:
+                result = "FAIL"
+
+            reason = str(
+                parsed.get("reason", "")
+            )
+
+            return {
+                "result": result,
+                "reason": reason
+            }
+
+    except json.JSONDecodeError as e:
+        logging.error(f"Judge returned invalid JSON: {e}")
+
+        return {
+            "result": "FAIL",
+            "reason": f"Judge returned invalid JSON: {e}"
+        }
+
+    except Exception as e:
+        logging.error(f"Unexpected error parsing judge output: {e}")
+
+        return {
+            "result": "FAIL",
+            "reason": f"Unexpected error parsing judge output: {e}"
         }

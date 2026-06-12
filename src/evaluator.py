@@ -14,10 +14,11 @@ def evaluate_response(input_text, output, expected, judge_runtime=None):
         expected
     )
 
+    verdict = call_judge_model(
+        evaluation_prompt,
+        judge_runtime=judge_runtime)
+
     if isinstance(evaluation_prompt, dict):
         return evaluation_prompt
 
-    return call_judge_model(
-        evaluation_prompt,
-        judge_runtime=judge_runtime
-    )
+    return verdict
